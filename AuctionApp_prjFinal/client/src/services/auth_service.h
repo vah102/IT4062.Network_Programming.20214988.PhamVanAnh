@@ -3,7 +3,9 @@
 
 #include <stdbool.h>
 
+#define BUFFER_SIZE 100000
+
 int handle_login(int sockfd, const char *username, const char *password);
-int handle_register(const char *username, const char *password, const char *email, int socket_fd);
+int handle_register(int sockfd, const char *username, const char *password);
 
 #endif // AUTH_SERVICE_H

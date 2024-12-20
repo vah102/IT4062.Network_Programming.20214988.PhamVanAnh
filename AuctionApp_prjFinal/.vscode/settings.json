@@ -3,6 +3,12 @@
     "files.associations": {
         "style_manager.h": "c",
         "user_controller.h": "c",
-        "socket.h": "c"
+        "socket.h": "c",
+        "message_type.h": "c",
+        "session_manager.h": "c",
+        "home_view.h": "c",
+        "server_controller.h": "c",
+        "auction_service.h": "c",
+        "room.h": "c"
     }
 }

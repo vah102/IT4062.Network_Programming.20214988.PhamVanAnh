@@ -102,6 +102,7 @@
                     <property name="visible">True</property>
                     <property name="can-focus">True</property>
                     <property name="visibility">False</property>
+                    <property name="input-purpose">password</property>
                     <style>
                       <class name="custom_input"/>
                     </style>
