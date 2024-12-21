@@ -9,6 +9,7 @@ typedef struct
 {
     int sockfd;
     int room_id;
+    int item_id;
 
     GtkWidget *add_item_form;
     GtkWidget *item_name;
@@ -21,6 +22,12 @@ typedef struct
     GtkListBox *item_list;
 
 } AuctionContext;
+
+typedef struct
+{
+    int sockfd;
+    int item_id;
+} ItemContext;
 
 void on_auction_window_destroy(GtkWidget *widget, gpointer user_data)
 {
@@ -40,7 +47,6 @@ void clear_item_children(GtkListBox *listbox)
     g_list_free(children);
 }
 
-////////////////// AUCTION PAGE //////////////////
 GtkWidget *add_item_card(Item item, gpointer user_data)
 {
     // AuctionContext *context = (AuctionContext *)user_data;
@@ -57,7 +63,7 @@ GtkWidget *add_item_card(Item item, gpointer user_data)
         return NULL;
     }
 
-    gtk_builder_connect_signals(builder, NULL);
+    gtk_builder_connect_signals(builder, &item);
 
     card = GTK_WIDGET(gtk_builder_get_object(builder, "item_card"));
 
@@ -68,35 +74,33 @@ GtkWidget *add_item_card(Item item, gpointer user_data)
     }
 
     // Tìm và cập nhật nội dung trong card
-    GtkWidget *label_item_name = GTK_WIDGET(gtk_builder_get_object(builder, "label_item_name"));
+    GtkWidget *item_name = GTK_WIDGET(gtk_builder_get_object(builder, "item_name"));
 
-    if (GTK_IS_LABEL(label_item_name))
+    if (GTK_IS_LABEL(item_name))
     {
-        gtk_label_set_text(GTK_LABEL(label_item_name), item.name);
+        gtk_label_set_text(GTK_LABEL(item_name), item.name);
     }
 
     return card;
 }
 
-////////////////// LIST ITEM /////////////////
 void fetch_item(gpointer user_data)
 {
     AuctionContext *context = (AuctionContext *)user_data;
 
     // Tạo mảng Item để lưu danh sách item nhận được
     Item items[MAX_ITEM];
-    int item_count = handle_fetch_items(context->sockfd,context-> room_id, items);
+    int count = handle_fetch_items(context->sockfd,context-> room_id, items);
 
-    if (item_count < 0)
+    if (count < 0)
     {
         g_printerr("Failed to fetch item list from server\n");
         return;
     }
 
     // Duyệt qua danh sách item và thêm vào GTK_LIST_BOX
-    for (int i = 0; i < item_count; i++)
+    for (int i = 0; i < count; i++)
     {
-
         GtkWidget *item_card = add_item_card(items[i], context); 
         gtk_list_box_insert(context->item_list, item_card, -1);
     }
@@ -105,6 +109,23 @@ void fetch_item(gpointer user_data)
     gtk_widget_show_all(GTK_WIDGET(context->item_list));
 }
 
+void on_delete_item(GtkWidget *button, gpointer user_data)
+{
+    // Item *item = (Item *)user_data;
+    AuctionContext *context = (AuctionContext *)user_data;
+     g_print("Delete button clicked\n");
+
+    int result = handle_delete_item(context->sockfd,context-> item_id); 
+
+    if (result > 0)
+    {
+        // Nếu xóa thành công, cập nhật lại danh sách item
+        clear_item_children(GTK_LIST_BOX(context->item_list));
+        fetch_item(context);
+    }
+}
+
+////////////////// LIST ITEM /////////////////
 void show_add_item_form(GtkWidget *button, gpointer user_data)
 {
     AuctionContext *context = (AuctionContext *)user_data;
@@ -119,29 +140,21 @@ void on_add_item_ok(GtkWidget *button, gpointer user_data)
 {
     AuctionContext *context = (AuctionContext *)user_data;
 
-    g_print("Add Item Button Pressed\n"); 
     GtkWidget *form = GTK_WIDGET(context->add_item_form);
     const gchar *item_name = gtk_entry_get_text(GTK_ENTRY(context->item_name));
     const gchar *item_starting_price_str = gtk_entry_get_text(GTK_ENTRY(context->item_starting_price));
     const gchar *item_buynow_price_str = gtk_entry_get_text(GTK_ENTRY(context->item_buynow_price));
     const gchar *item_auction_time_str = gtk_entry_get_text(GTK_ENTRY(context->item_auction_time));
-
-    g_print("Item Name: %s\n", item_name); 
+    g_print("Item Name: %s\n", item_name); // In ra tên vật phẩm
     g_print("Starting Price: %s\n", item_starting_price_str);
     g_print("Buy Now Price: %s\n", item_buynow_price_str);
     g_print("Auction Time: %s\n", item_auction_time_str);
-
     int item_buynow_price = atoi(item_buynow_price_str);
     int item_starting_price = atoi(item_starting_price_str);
     int item_auction_time = atoi(item_auction_time_str);
-    
-
-    int item_id = handle_create_item(context->sockfd, context->room_id, item_name, item_starting_price, item_buynow_price, item_auction_time);
-    g_print("Item ID: %d\n", itemId); 
-
-    if (item_id > 0)
+    int itemId = handle_create_item(context->sockfd, context->room_id, item_name, item_starting_price, item_buynow_price, item_auction_time);
+    if (itemId > 0)
     {
-        g_print("Item created successfully!\n");
         gtk_widget_hide(form);
         clear_item_children(GTK_LIST_BOX(context->item_list));
         fetch_item(context);
@@ -149,8 +162,8 @@ void on_add_item_ok(GtkWidget *button, gpointer user_data)
     else
     {
         gtk_label_set_text(GTK_LABEL(context->add_item_msg), "This item's name already exists.");
-        g_print("Item creation failed.\n");
     }
+
 }
 
 
@@ -164,7 +177,7 @@ void on_add_item_cancel(GtkWidget *button, gpointer user_data)
 
 ////////////////// ////////////////// //////////////////
 
-void init_auction_view(int sockfd, GtkWidget *home_window, Room room, int role)
+void init_auction_view(int sockfd, GtkWidget *home_window, Room room, Item item, int role)
 {
     GtkBuilder *builder;
     GtkWidget *window;
@@ -186,6 +199,8 @@ void init_auction_view(int sockfd, GtkWidget *home_window, Room room, int role)
     GtkWidget *label_room_joiner = GTK_WIDGET(gtk_builder_get_object(builder, "label_room_joiner"));
     GtkWidget *add_button = GTK_WIDGET(gtk_builder_get_object(builder, "add_button"));
 
+
+
     if (GTK_IS_LABEL(label_room_name))
     {
         gtk_label_set_text(GTK_LABEL(label_room_name), room.roomName);
@@ -202,13 +217,21 @@ void init_auction_view(int sockfd, GtkWidget *home_window, Room room, int role)
     }
 
 
+
     AuctionContext *auctionContext = g_malloc(sizeof(AuctionContext));
     auctionContext->sockfd = sockfd;
     auctionContext->room_id = room.room_id;
 
     auctionContext->item_list = GTK_LIST_BOX(gtk_builder_get_object(builder, "item_list"));
+    auctionContext->item_name = GTK_WIDGET(gtk_builder_get_object(builder, "item_name"));
+    auctionContext->item_starting_price = GTK_WIDGET(gtk_builder_get_object(builder, "item_starting_price"));
+    auctionContext->item_buynow_price = GTK_WIDGET(gtk_builder_get_object(builder, "item_buynow_price"));
+    auctionContext->item_auction_time = GTK_WIDGET(gtk_builder_get_object(builder, "item_auction_time"));
     auctionContext->item_card = GTK_WIDGET(gtk_builder_get_object(builder, "item_card"));
     auctionContext->add_item_form = GTK_WIDGET(gtk_builder_get_object(builder, "add_item_form"));
+    auctionContext->add_item_msg = GTK_WIDGET(gtk_builder_get_object(builder, "add_item_msg"));
+
+
 
     gtk_builder_connect_signals(builder, auctionContext);
 
@@ -217,11 +240,7 @@ void init_auction_view(int sockfd, GtkWidget *home_window, Room room, int role)
     if (role == 2) {
         gtk_widget_hide(add_button);
     }
+    fetch_item(auctionContext);
 
     g_object_unref(builder);
 }
-
-
-
-
-

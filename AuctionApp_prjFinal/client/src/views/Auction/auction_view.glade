@@ -443,7 +443,7 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkButton">
+                      <object class="GtkButton" id="start_auction_bnt">
                         <property name="label" translatable="yes">Start Auction</property>
                         <property name="visible">True</property>
                         <property name="can-focus">True</property>
